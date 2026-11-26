@@ -4,6 +4,11 @@ import numpy as np
 
 from gaussian_solver import gaussian_elimination
 
+ROUTE_1_BASE_ETA_MINUTES = 12.0
+ROUTE_2_BASE_ETA_MINUTES = 16.0
+ROUTE_1_CAPACITY = 36.0
+ROUTE_2_CAPACITY = 16.0
+
 
 def train_eta_model():
     """Fit a linear ETA model using normal equations and custom elimination."""
@@ -53,13 +58,20 @@ def solve_traffic_split(total_cars, accident_active):
         )
         rhs = np.array([total_cars, 0.0, 0.0, 0.0])
     else:
-        # Effective service rates 36/12=3 and 16/16=1 give a 75/25 split.
+        # Equal utilization of capacity per travel minute gives a 75/25 split.
+        route1_service_rate = ROUTE_1_CAPACITY / ROUTE_1_BASE_ETA_MINUTES
+        route2_service_rate = ROUTE_2_CAPACITY / ROUTE_2_BASE_ETA_MINUTES
         matrix = np.array(
             [
                 [1.0, 0.0, 1.0, 0.0],
                 [1.0, -1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, -1.0],
-                [1.0 / 3.0, 0.0, -1.0, 0.0],
+                [
+                    1.0 / route1_service_rate,
+                    0.0,
+                    -1.0 / route2_service_rate,
+                    0.0,
+                ],
             ]
         )
         rhs = np.array([total_cars, 0.0, 0.0, 0.0])

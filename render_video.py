@@ -46,8 +46,7 @@ def _point_on_route(route1, progress, incident_slow):
 
 def render_video():
     """Render the 15-second split-screen simulation to an MP4 file."""
-    features, _, weights, snapshots = train_eta_model()
-    del features
+    _, _, weights, snapshots = train_eta_model()
 
     plt.style.use("dark_background")
     figure = plt.figure(figsize=(19.2, 10.8), dpi=100, facecolor="#10151c")
@@ -237,7 +236,8 @@ def render_video():
             f"ETA = {eta:.2f} min"
         )
         flow_text.set_text(
-            "[M | b]  columns: AB, BD, AC, CD | demand=100\n"
+            "[M | b]  cols: AB, BD, AC, CD | demand=100\n"
+            "rows: A, B, C, equilibrium (D implied)\n"
             + _matrix_text(flow_matrix)
             + f"\nRoute 1: {route1_flow:.0f}%   Route 2: {route2_flow:.0f}%"
         )
