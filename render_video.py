@@ -1,3 +1,10 @@
+"""Render a traffic-routing demo with a live road view and matrix-based HUD.
+
+The animation pairs a small diamond-road network with a synthetic linear ETA
+model and a flow-conservation solver. The right-hand panels show Gaussian-
+elimination snapshots, live ETA calculations, and route-flow equations.
+"""
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -6,6 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 from matplotlib.gridspec import GridSpec
+from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, FancyBboxPatch
 
 from traffic_model import predict_eta, solve_traffic_split, train_eta_model
@@ -29,6 +37,7 @@ def _matrix_text(matrix):
 
 
 def _point_on_route(route1, progress, incident_slow):
+    """Interpolate a vehicle along either branch of the A-to-D road network."""
     start = NODE_POSITIONS["A"]
     middle = NODE_POSITIONS["B"] if route1 else NODE_POSITIONS["C"]
     destination = NODE_POSITIONS["D"]
@@ -102,6 +111,23 @@ def render_video():
         0.1, 9.55, "GPS TRAFFIC ETA  /  LIVE ROUTE ASSIGNMENT",
         color="#f0f4f7", fontsize=14, weight="bold",
     )
+    # The colors match the animated vehicles and the incident marker below.
+    road_legend = (
+        Line2D([], [], marker="o", linestyle="None", markersize=7,
+               markerfacecolor="#39e879", markeredgecolor="#10151c",
+               label="Route 1: A-B-D"),
+        Line2D([], [], marker="o", linestyle="None", markersize=7,
+               markerfacecolor="#ffd166", markeredgecolor="#10151c",
+               label="Route 2: A-C-D"),
+        Line2D([], [], marker="*", linestyle="None", markersize=9,
+               markerfacecolor="#ff334d", markeredgecolor="#ffd4da",
+               label="Incident: B-D"),
+    )
+    road_ax.legend(
+        handles=road_legend, loc="upper left", bbox_to_anchor=(0.0, 0.91),
+        ncol=3, fontsize=8, facecolor="#18212b", edgecolor="#334454",
+        labelcolor="#e2e8ed", framealpha=1.0,
+    )
 
     car_count = 35
     offsets = np.arange(car_count, dtype=float) / car_count
@@ -126,6 +152,7 @@ def render_video():
         0.1, 1.17, "", color="#dce5eb", fontsize=10, family="monospace",
     )
 
+    # Three stacked cards keep training, prediction, and network flow distinct.
     cards = (
         (0.02, 0.675, 0.96, 0.305, "ML TRAINING  /  NORMAL EQUATIONS"),
         (0.02, 0.355, 0.96, 0.295, "LIVE ETA  /  DOT PRODUCT"),
@@ -147,7 +174,7 @@ def render_video():
         )
 
     training_text = hud_ax.text(
-        0.06, 0.72, "", transform=hud_ax.transAxes,
+        0.06, 0.86, "", transform=hud_ax.transAxes,
         color="#e2e8ed", fontsize=8.5, family="monospace",
         va="top", linespacing=1.25,
     )
@@ -180,7 +207,9 @@ def render_video():
         progress = raw_progress - trip_number
         trip_start = (trip_number - offsets) * 240.0
         initial_route1 = np.arange(car_count) < int(car_count * 0.75)
-        route1 = np.where(trip_start >= 210.0, False, initial_route1)
+        # Divert only trips that start during the one-second incident window.
+        incident_departure = (trip_start >= 180.0) & (trip_start < 210.0)
+        route1 = np.where(incident_departure, False, initial_route1)
         on_accident_segment = incident & route1 & (progress >= 0.5)
         positions = np.array(
             [
@@ -201,7 +230,7 @@ def render_video():
         accident_flag = 1.0 if incident else 0.0
         eta = predict_eta(weights, volume, weather, accident_flag)
         route1_flow, route2_flow, flow_matrix = solve_traffic_split(
-            100.0, frame >= 180
+            100.0, incident
         )
         eta_text.set_text(f"Predicted ETA: ~{eta:.1f} min")
         route_text.set_text(
